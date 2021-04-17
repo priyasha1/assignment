@@ -1,0 +1,124 @@
+AWSTemplateFormatVersion: 2010-09-09
+Resources:
+  PhoneTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: customer_data
+      AttributeDefinitions:
+        - AttributeName: "telephone_number"
+          AttributeType: "S"
+        - AttributeName: "first_name"
+          AttributeType: "S"
+        - AttributeName: "password"
+          AttributeType: "S"
+        - AttributeName: "file_name"
+          AttributeType: "S"
+        - AttributeName: "file_size"
+          AttributeType: "S"
+        - AttributeName: "created_timestamp"
+          AttributeType: "S"
+      KeySchema:
+        - AttributeName: "telephone_number"
+          KeyType: "HASH"
+      ProvisionedThroughput:
+        ReadCapacityUnits: "1"
+        WriteCapacityUnits: "1"
+    DependsOn:
+      - DynamoDBQueryPolicy
+
+  DynamoDBQueryPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: DynamoDBQueryPolicy
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action: "dynamodb:Query"
+            Resource: "*"
+      Roles:
+        - Ref: "phonenumberTableQueryRole"
+
+  phonenumberTableQueryRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "dynamodb.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: customer-contact-data
+
+  bucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: customer-contact-data
+      PolicyDocument:
+        Version: 2012-10-17
+        Id: Policy1618643276178
+        Statement:
+          - Sid: PreventDeleteObject
+            Effect: Deny
+            NotPrincipal:
+              AWS: 'arn:aws:iam::414215993041:root'
+            Action: 's3:DeleteObject'
+            Resource: 'arn:aws:s3:::customer-contact-data/*'
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Fn::Sub: lambda-role
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+            - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+              - lambda.amazonaws.com
+        Version: 2012-10-17
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+      Path: /
+
+  CheckPhoneLambda:
+    Type:  AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: lambda-bucket
+        S3Key: lambda-bucket/check_phone.zip
+      Handler: "lambda_handler"
+      Runtime: "python3.8"
+      MemorySize: 128
+      Timeout: 900
+      Role:
+        Fn::GetAtt:
+          - LambdaRole
+          - Arn
+
+
+  UpdatePhoneLambda:
+    Type:  AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: lambda-bucket
+        S3Key: lambda-bucket/update_phone.zip
+      Handler: "lambda_handler"
+      Runtime: "python3.8"
+      MemorySize: 128
+      Timeout: 900
+      Role:
+        Fn::GetAtt:
+          - LambdaRole
+          - Arn
